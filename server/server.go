@@ -1,10 +1,11 @@
-package main
+package server
 
 import (
 	"fmt"
 	"log"
 	"net"
 	"netspeed/protocol"
+	"sync"
 )
 
 func handle_read(c net.Conn, blocksize uint32) {
@@ -61,13 +62,14 @@ func handleConn(c net.Conn) {
 
 }
 
-func main() {
-	listen, err := net.Listen("tcp", ":8888")
+func ServerMain(address string, wg *sync.WaitGroup) {
+	listen, err := net.Listen("tcp", address)
 	if err != nil {
 		fmt.Println("listen error: ", err)
+		wg.Done()
 		return
 	}
-
+	log.Printf("listen:%s", address)
 	for {
 		conn, err := listen.Accept()
 		if err != nil {
@@ -78,4 +80,5 @@ func main() {
 		// start a new goroutine to handle the new connection
 		go handleConn(conn)
 	}
+	wg.Done()
 }

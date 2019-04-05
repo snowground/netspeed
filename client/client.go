@@ -1,7 +1,6 @@
-package main
+package client
 
 import (
-	"flag"
 	"fmt"
 	"log"
 	"net"
@@ -52,7 +51,7 @@ func bytes2human(n int64, base int64) (str string) {
 	return fmt.Sprintf("%8.2f B", float64(n))
 }
 
-func handle_read(address string, blocksize uint32) {
+func HandleRead(address string, blocksize uint32, wg *sync.WaitGroup) {
 	var rwbuf = make([]byte, blocksize)
 	var header protocol.Header
 	header.Sig = protocol.HEADER_SIG
@@ -85,7 +84,7 @@ func handle_read(address string, blocksize uint32) {
 exit:
 	wg.Done()
 }
-func handle_write(address string, blocksize uint32) {
+func HandleWrite(address string, blocksize uint32, wg *sync.WaitGroup) {
 	var rwbuf = make([]byte, blocksize)
 	var header protocol.Header
 	header.Sig = protocol.HEADER_SIG
@@ -119,7 +118,7 @@ exit:
 	wg.Done()
 }
 
-func dispaly_speed() {
+func DispalySpeed() {
 	var last_up int64 = 0
 	var last_down int64 = 0
 
@@ -140,7 +139,7 @@ func dispaly_speed() {
 		}
 		now_up := atomic.LoadInt64(&total_write)
 		now_down := atomic.LoadInt64(&total_read)
-		log.Printf("down:%s/s up:%s/s ...", bytes2human(now_down-last_down, 1000), bytes2human(now_up-last_up, 1000))
+		log.Printf("down:%s/s     up:%s/s ...", bytes2human(now_down-last_down, 1000), bytes2human(now_up-last_up, 1000))
 		last_up = now_up
 		last_down = now_down
 	}
@@ -155,28 +154,4 @@ func start_timer(myTimer func(), sec uint32) {
 		}
 	}
 
-}
-
-func main() {
-
-	address := flag.String("c", default_address, "server address")
-	blocksize := flag.Uint64("b", uint64(default_block_size), "block_size")
-	count := flag.Int("P", 1, "count for connect")
-	read := flag.Bool("r", true, "connect read")
-	write := flag.Bool("w", true, "connect write")
-	flag.Parse()
-
-	for i := 0; i < *count; i++ {
-		if *read == true {
-			wg.Add(1)
-			go handle_read(*address, uint32(*blocksize))
-		}
-		if *write == true {
-			wg.Add(1)
-			go handle_write(*address, uint32(*blocksize))
-		}
-	}
-
-	go dispaly_speed()
-	wg.Wait()
 }
