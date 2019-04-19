@@ -14,6 +14,7 @@ var default_block_size uint32 = 64 * 1024
 func main() {
 
 	caddress := flag.String("c", "", "connect address(client)")
+	baddress := flag.String("B", "", "bind address(client)")
 	saddress := flag.String("s", "", "listen address(server)")
 	blocksize := flag.Uint64("b", uint64(default_block_size), "block_size")
 	count := flag.Int("P", 1, "count for connect")
@@ -30,11 +31,11 @@ func main() {
 		for i := 0; i < *count; i++ {
 			if *read == true {
 				wg.Add(1)
-				go client.HandleRead(*caddress, uint32(*blocksize), &wg)
+				go client.HandleRead(*caddress, *baddress, uint32(*blocksize), &wg)
 			}
 			if *write == true {
 				wg.Add(1)
-				go client.HandleWrite(*caddress, uint32(*blocksize), &wg)
+				go client.HandleWrite(*caddress, *baddress, uint32(*blocksize), &wg)
 			}
 		}
 		go client.DispalySpeed()

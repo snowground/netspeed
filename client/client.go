@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 	"netspeed/protocol"
+	"netspeed/util"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -51,7 +52,26 @@ func bytes2human(n int64, base int64) (str string) {
 	return fmt.Sprintf("%8.2f B", float64(n))
 }
 
-func HandleRead(address string, blocksize uint32, wg *sync.WaitGroup) {
+func connectServer(serverAddr string, localAddr string) (*net.TCPConn, error) {
+	serveraddr, serr := net.ResolveTCPAddr("tcp", serverAddr)
+	if serr != nil {
+		return nil, serr
+	}
+	var localaddr *net.TCPAddr = nil
+	var lerr error = nil
+	if len(localAddr) > 0 {
+		localaddr, lerr = net.ResolveTCPAddr("tcp", localAddr)
+		if lerr != nil {
+			return nil, lerr
+		}
+	}
+	c, err := net.DialTCP("tcp", localaddr, serveraddr)
+	if err != nil {
+		return nil, err
+	}
+	return c, nil
+}
+func HandleRead(serverAddr string, localAddr string, blocksize uint32, wg *sync.WaitGroup) {
 	var rwbuf = make([]byte, blocksize)
 	var header protocol.Header
 	header.Sig = protocol.HEADER_SIG
@@ -59,14 +79,14 @@ func HandleRead(address string, blocksize uint32, wg *sync.WaitGroup) {
 	header.DataLen = blocksize
 	buf := protocol.Header2Data(&header)
 	var n int
-	addr, err := net.ResolveTCPAddr("tcp", address)
-	c, err := net.DialTCP("tcp", nil, addr)
+
+	c, err := connectServer(serverAddr, localAddr)
 	if err != nil {
 		log.Println("dial error:", err)
 		goto exit
 	}
 	defer c.Close()
-
+	util.BindToDevice(c)
 	c.SetWriteBuffer(int(blocksize))
 	n, err = c.Write(buf)
 	if err != nil || n < 0 {
@@ -86,7 +106,7 @@ func HandleRead(address string, blocksize uint32, wg *sync.WaitGroup) {
 exit:
 	wg.Done()
 }
-func HandleWrite(address string, blocksize uint32, wg *sync.WaitGroup) {
+func HandleWrite(serverAddr string, localAddr string, blocksize uint32, wg *sync.WaitGroup) {
 	var rwbuf = make([]byte, blocksize)
 	var header protocol.Header
 	header.Sig = protocol.HEADER_SIG
@@ -94,14 +114,13 @@ func HandleWrite(address string, blocksize uint32, wg *sync.WaitGroup) {
 	header.DataLen = blocksize
 	buf := protocol.Header2Data(&header)
 	var n int
-	addr, err := net.ResolveTCPAddr("tcp", address)
-	c, err := net.DialTCP("tcp", nil, addr)
+	c, err := connectServer(serverAddr, localAddr)
 	if err != nil {
 		log.Println("dial error:", err)
 		goto exit
 	}
 	defer c.Close()
-
+	util.BindToDevice(c)
 	c.SetWriteBuffer(int(blocksize))
 
 	n, err = c.Write(buf)
