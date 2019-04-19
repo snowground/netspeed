@@ -5,10 +5,11 @@ import (
 	"log"
 	"net"
 	"netspeed/protocol"
+	"netspeed/util"
 	"sync"
 )
 
-func handle_read(c net.Conn, blocksize uint32) {
+func handle_read(c net.TCPConn, blocksize uint32) {
 	log.Printf("handle_read from conn:%s blocksize:%d", c.RemoteAddr(), blocksize)
 	var buf = make([]byte, blocksize)
 	for {
@@ -19,7 +20,7 @@ func handle_read(c net.Conn, blocksize uint32) {
 		}
 	}
 }
-func handle_write(c net.Conn, blocksize uint32) {
+func handle_write(c net.TCPConn, blocksize uint32) {
 	log.Printf("handle_write from conn:%s blocksize:%d", c.RemoteAddr(), blocksize)
 	var buf = make([]byte, blocksize)
 	for {
@@ -30,7 +31,7 @@ func handle_write(c net.Conn, blocksize uint32) {
 		}
 	}
 }
-func handleConn(c net.Conn) {
+func handleConn(c net.TCPConn) {
 	defer c.Close()
 
 	// read from the connection
@@ -50,9 +51,11 @@ func handleConn(c net.Conn) {
 	}
 	switch header.Func {
 	case protocol.HEADER_FUNC_READ:
+		c.SetWriteBuffer(int(header.DataLen))
 		handle_read(c, header.DataLen)
 		break
 	case protocol.HEADER_FUNC_WRITE:
+		c.SetReadBuffer(int(header.DataLen))
 		handle_write(c, header.DataLen)
 		break
 	default:
@@ -63,7 +66,8 @@ func handleConn(c net.Conn) {
 }
 
 func ServerMain(address string, wg *sync.WaitGroup) {
-	listen, err := net.Listen("tcp", address)
+	addr, err := net.ResolveTCPAddr("tcp", address)
+	listen, err := net.ListenTCP("tcp", addr)
 	if err != nil {
 		fmt.Println("listen error: ", err)
 		wg.Done()
@@ -71,14 +75,15 @@ func ServerMain(address string, wg *sync.WaitGroup) {
 	}
 	log.Printf("listen:%s", address)
 	for {
-		conn, err := listen.Accept()
+		conn, err := listen.AcceptTCP()
 		if err != nil {
 			fmt.Println("accept error: ", err)
 			break
 		}
 
 		// start a new goroutine to handle the new connection
-		go handleConn(conn)
+		util.BindToDevice(conn)
+		go handleConn(*conn)
 	}
 	wg.Done()
 }

@@ -56,16 +56,18 @@ func HandleRead(address string, blocksize uint32, wg *sync.WaitGroup) {
 	var header protocol.Header
 	header.Sig = protocol.HEADER_SIG
 	header.Func = protocol.HEADER_FUNC_READ
-	header.DataLen = 4096
+	header.DataLen = blocksize
 	buf := protocol.Header2Data(&header)
 	var n int
-	c, err := net.Dial("tcp", address)
+	addr, err := net.ResolveTCPAddr("tcp", address)
+	c, err := net.DialTCP("tcp", nil, addr)
 	if err != nil {
 		log.Println("dial error:", err)
 		goto exit
 	}
 	defer c.Close()
 
+	c.SetWriteBuffer(int(blocksize))
 	n, err = c.Write(buf)
 	if err != nil || n < 0 {
 		log.Println("conn Write header error:", err)
@@ -89,15 +91,18 @@ func HandleWrite(address string, blocksize uint32, wg *sync.WaitGroup) {
 	var header protocol.Header
 	header.Sig = protocol.HEADER_SIG
 	header.Func = protocol.HEADER_FUNC_WRITE
-	header.DataLen = 4096
+	header.DataLen = blocksize
 	buf := protocol.Header2Data(&header)
 	var n int
-	c, err := net.Dial("tcp", address)
+	addr, err := net.ResolveTCPAddr("tcp", address)
+	c, err := net.DialTCP("tcp", nil, addr)
 	if err != nil {
 		log.Println("dial error:", err)
 		goto exit
 	}
 	defer c.Close()
+
+	c.SetWriteBuffer(int(blocksize))
 
 	n, err = c.Write(buf)
 	if err != nil || n < 0 {
