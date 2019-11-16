@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"netspeed/protocol"
-	"netspeed/util"
 	"sync"
+
+	"github.com/snowground/netspeed/protocol"
+	"github.com/snowground/netspeed/util"
 )
 
 func handle_read(c net.TCPConn, blocksize uint32) {

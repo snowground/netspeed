@@ -2,9 +2,10 @@ package main
 
 import (
 	"flag"
-	"netspeed/client"
-	"netspeed/server"
 	"sync"
+
+	"github.com/snowground/netspeed/client"
+	"github.com/snowground/netspeed/server"
 )
 
 var wg sync.WaitGroup

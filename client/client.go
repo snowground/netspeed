@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"netspeed/protocol"
-	"netspeed/util"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/snowground/netspeed/protocol"
+	"github.com/snowground/netspeed/util"
 )
 
 var total_read int64 = 0
