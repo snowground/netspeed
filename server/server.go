@@ -15,7 +15,7 @@ func handle_read(c net.TCPConn, blocksize uint32) {
 	for {
 		n, err := c.Write(buf)
 		if err != nil || n < 0 {
-			log.Println("conn read error:", err)
+			log.Println("conn write error:", err)
 			return
 		}
 	}
