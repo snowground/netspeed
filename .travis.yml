@@ -28,7 +28,7 @@ before_deploy:
 deploy:
   provider: releases
   api_key: $CI_USER_TOKEN
-  skip_cleanup: false
+  cleanup: false
   file:
     - netspeed-linux-arm.zip
     - netspeed-linux-386.zip
