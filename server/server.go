@@ -3,14 +3,13 @@ package server
 import (
 	"fmt"
 	"log"
-	"net"
 	"sync"
 
 	"github.com/snowground/netspeed/protocol"
-	"github.com/snowground/netspeed/util"
+	"github.com/snowground/netspeed/transfer"
 )
 
-func handle_read(c net.TCPConn, blocksize uint32) {
+func handle_read(c transfer.Conn, blocksize uint32) {
 	log.Printf("handle_read from conn:%s blocksize:%d", c.RemoteAddr(), blocksize)
 	var buf = make([]byte, blocksize)
 	for {
@@ -21,7 +20,7 @@ func handle_read(c net.TCPConn, blocksize uint32) {
 		}
 	}
 }
-func handle_write(c net.TCPConn, blocksize uint32) {
+func handle_write(c transfer.Conn, blocksize uint32) {
 	log.Printf("handle_write from conn:%s blocksize:%d", c.RemoteAddr(), blocksize)
 	var buf = make([]byte, blocksize)
 	for {
@@ -32,7 +31,7 @@ func handle_write(c net.TCPConn, blocksize uint32) {
 		}
 	}
 }
-func handleConn(c net.TCPConn) {
+func handleConn(c transfer.Conn) {
 	defer c.Close()
 
 	// read from the connection
@@ -52,11 +51,11 @@ func handleConn(c net.TCPConn) {
 	}
 	switch header.Func {
 	case protocol.HEADER_FUNC_READ:
-		c.SetWriteBuffer(int(header.DataLen))
+		c.SetBuffer(int(header.DataLen),int(header.DataLen))
 		handle_read(c, header.DataLen)
 		break
 	case protocol.HEADER_FUNC_WRITE:
-		c.SetReadBuffer(int(header.DataLen))
+		c.SetBuffer(int(header.DataLen),int(header.DataLen))
 		handle_write(c, header.DataLen)
 		break
 	default:
@@ -66,25 +65,34 @@ func handleConn(c net.TCPConn) {
 
 }
 
-func ServerMain(address string, wg *sync.WaitGroup) {
-	addr, err := net.ResolveTCPAddr("tcp", address)
-	listen, err := net.ListenTCP("tcp", addr)
+func ServerMain(address string,transferType string, wg *sync.WaitGroup) {
+	var l transfer.Listener
+	var err error
+
+    switch transferType {
+	case "tcp":
+			l,err = transfer.TcpServer(address)
+	case "kcp":
+			l,err = transfer.KcpServer(address)
+	default:
+			fmt.Println("transferType error: ", transferType)
+			wg.Done()
+			return
+	}
+		
 	if err != nil {
 		fmt.Println("listen error: ", err)
 		wg.Done()
 		return
 	}
-	log.Printf("listen:%s", address)
+	log.Printf("listen:%s %s", address,transferType)
 	for {
-		conn, err := listen.AcceptTCP()
+		conn, err := l.Accept()
 		if err != nil {
 			fmt.Println("accept error: ", err)
 			break
 		}
-
-		// start a new goroutine to handle the new connection
-		util.BindToDevice(conn)
-		go handleConn(*conn)
+		go handleConn(conn)
 	}
 	wg.Done()
 }

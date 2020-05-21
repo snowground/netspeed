@@ -10,7 +10,7 @@ import (
 	"syscall"
 )
 
-func getlocalip(conn net.TCPConn) string {
+func getlocalip(conn *net.TCPConn) string {
 	return strings.Split(conn.LocalAddr().String(), ":")[0]
 }
 func BindToDevice(conn *net.TCPConn) error {

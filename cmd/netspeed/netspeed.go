@@ -21,6 +21,7 @@ func main() {
 	count := flag.Int("P", 1, "count for connect")
 	read := flag.Bool("r", true, "connect read")
 	write := flag.Bool("w", true, "connect write")
+	transferType := flag.String("t", "tcp", "transfer type (tcp,kcp)")
 
 	flag.Parse()
 
@@ -32,17 +33,17 @@ func main() {
 		for i := 0; i < *count; i++ {
 			if *read == true {
 				wg.Add(1)
-				go client.HandleRead(*caddress, *baddress, uint32(*blocksize), &wg)
+				go client.HandleRead(*caddress, *baddress,*transferType,uint32(*blocksize), &wg)
 			}
 			if *write == true {
 				wg.Add(1)
-				go client.HandleWrite(*caddress, *baddress, uint32(*blocksize), &wg)
+				go client.HandleWrite(*caddress, *baddress,*transferType, uint32(*blocksize), &wg)
 			}
 		}
 		go client.DispalySpeed()
 	} else if *saddress != "" {
 		wg.Add(1)
-		server.ServerMain(*saddress, &wg)
+		server.ServerMain(*saddress, *transferType,&wg)
 	}
 
 	wg.Wait()

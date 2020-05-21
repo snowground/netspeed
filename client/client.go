@@ -3,13 +3,12 @@ package client
 import (
 	"fmt"
 	"log"
-	"net"
 	"sync"
 	"sync/atomic"
 	"time"
-
+	"errors"
 	"github.com/snowground/netspeed/protocol"
-	"github.com/snowground/netspeed/util"
+	"github.com/snowground/netspeed/transfer"
 )
 
 var total_read int64 = 0
@@ -53,26 +52,23 @@ func bytes2human(n int64, base int64) (str string) {
 	return fmt.Sprintf("%8.2f B", float64(n))
 }
 
-func connectServer(serverAddr string, localAddr string) (*net.TCPConn, error) {
-	serveraddr, serr := net.ResolveTCPAddr("tcp", serverAddr)
-	if serr != nil {
-		return nil, serr
-	}
-	var localaddr *net.TCPAddr = nil
-	var lerr error = nil
-	if len(localAddr) > 0 {
-		localaddr, lerr = net.ResolveTCPAddr("tcp", localAddr)
-		if lerr != nil {
-			return nil, lerr
-		}
-	}
-	c, err := net.DialTCP("tcp", localaddr, serveraddr)
-	if err != nil {
-		return nil, err
-	}
-	return c, nil
+func connectServer(serverAddr string, localAddr string,transferType string) (transfer.Conn, error) {
+	var l transfer.Conn
+	var err error
+
+    switch transferType {
+	case "tcp":
+			l,err = transfer.TcpConnect(serverAddr,localAddr)
+	case "kcp":
+			l,err = transfer.KcpConnect(serverAddr,localAddr)
+	default:
+			wg.Done()
+			return nil,errors.New("transferType error")
+	}	
+	
+	return l, err
 }
-func HandleRead(serverAddr string, localAddr string, blocksize uint32, wg *sync.WaitGroup) {
+func HandleRead(serverAddr string, localAddr string,transferType string, blocksize uint32, wg *sync.WaitGroup) {
 	var rwbuf = make([]byte, blocksize)
 	var header protocol.Header
 	header.Sig = protocol.HEADER_SIG
@@ -81,20 +77,19 @@ func HandleRead(serverAddr string, localAddr string, blocksize uint32, wg *sync.
 	buf := protocol.Header2Data(&header)
 	var n int
 
-	c, err := connectServer(serverAddr, localAddr)
+	c, err := connectServer(serverAddr, localAddr,transferType)
 	if err != nil {
 		log.Println("dial error:", err)
 		goto exit
 	}
 	defer c.Close()
-	util.BindToDevice(c)
-	c.SetWriteBuffer(int(blocksize))
+	c.SetBuffer(int(blocksize),int(blocksize))
 	n, err = c.Write(buf)
 	if err != nil || n < 0 {
 		log.Println("conn Write header error:", err)
 		goto exit
 	}
-	log.Printf("handle_read to conn:%s blocksize:%d", c.RemoteAddr(), blocksize)
+	log.Printf("handle_read to conn:%s %s blocksize:%d", c.RemoteAddr(),transferType, blocksize)
 
 	for {
 		n, err = c.Read(rwbuf)
@@ -107,7 +102,7 @@ func HandleRead(serverAddr string, localAddr string, blocksize uint32, wg *sync.
 exit:
 	wg.Done()
 }
-func HandleWrite(serverAddr string, localAddr string, blocksize uint32, wg *sync.WaitGroup) {
+func HandleWrite(serverAddr string, localAddr string,transferType string, blocksize uint32, wg *sync.WaitGroup) {
 	var rwbuf = make([]byte, blocksize)
 	var header protocol.Header
 	header.Sig = protocol.HEADER_SIG
@@ -115,21 +110,20 @@ func HandleWrite(serverAddr string, localAddr string, blocksize uint32, wg *sync
 	header.DataLen = blocksize
 	buf := protocol.Header2Data(&header)
 	var n int
-	c, err := connectServer(serverAddr, localAddr)
+	c, err := connectServer(serverAddr, localAddr,transferType)
 	if err != nil {
 		log.Println("dial error:", err)
 		goto exit
 	}
 	defer c.Close()
-	util.BindToDevice(c)
-	c.SetWriteBuffer(int(blocksize))
+	c.SetBuffer(int(blocksize),int(blocksize))
 
 	n, err = c.Write(buf)
 	if err != nil || n < 0 {
 		log.Println("conn Write header error:", err)
 		goto exit
 	}
-	log.Printf("handle_write to conn:%s blocksize:%d", c.RemoteAddr(), blocksize)
+	log.Printf("handle_write to conn:%s %s blocksize:%d", c.RemoteAddr(),transferType, blocksize)
 
 	for {
 		n, err = c.Write(rwbuf)
