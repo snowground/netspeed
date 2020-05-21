@@ -4,10 +4,11 @@ package util
 
 import (
 	"errors"
-	"log"
 	"net"
-	"strings"
-	"syscall"
+	// "log"
+	// "net"
+	// "strings"
+	// "syscall"
 )
 
 // func getlocalip(conn *net.TCPConn) string {
