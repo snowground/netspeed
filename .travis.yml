@@ -41,6 +41,5 @@ deploy:
     - netspeed-windows-gui-386.zip
     - netspeed-windows-gui-amd64.zip
   on:
-    tags: true
-    all_branches: true
+    branch: master
     go: 1.14
