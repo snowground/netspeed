@@ -4,10 +4,10 @@ go:
   - 1.14
 
 before_install:
-  -
+  - echo  before_install
 
 script:
-  - 
+  - echo  script
 
 before_deploy:
   - GOARCH=arm GOOS=linux   go build -a -v  -o netspeed-linux-arm
