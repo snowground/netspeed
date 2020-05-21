@@ -17,8 +17,6 @@ before_deploy:
   - GOARCH=amd64 GOOS=linux   go build -a -v -o netspeed-linux-amd64
   - GOARCH=amd64 GOOS=darwin  go build -a -v -o netspeed-darwin-amd64
   - GOARCH=amd64 GOOS=windows go build -a -v -o netspeed-windows-amd64.exe
-  - GOARCH=mips GOOS=linux   go build -a -v -o netspeed-linux-mips
-  - GOARCH=mipsel GOOS=linux   go build -a -v -o netspeed-linux-mipsel
   - zip -r netspeed-linux-arm.zip netspeed-linux-arm
   - zip -r netspeed-linux-386.zip netspeed-linux-386
   - zip -r netspeed-darwin-386.zip netspeed-darwin-386
@@ -26,8 +24,6 @@ before_deploy:
   - zip -r netspeed-darwin-amd64.zip netspeed-darwin-amd64
   - zip -r netspeed-windows-386.zip netspeed-windows-386.exe
   - zip -r netspeed-windows-amd64.zip netspeed-windows-amd64.exe
-  - zip -r netspeed-linux-mips.zip netspeed-linux-mips.exe
-  - zip -r netspeed-linux-mipsel.zip netspeed-linux-mipsel.exe
 
 deploy:
   provider: releases
@@ -41,8 +37,6 @@ deploy:
     - netspeed-linux-amd64.zip
     - netspeed-darwin-amd64.zip
     - netspeed-windows-amd64.zip
-    - netspeed-linux-mips.zip
-    - netspeed-linux-mipsel.zip
   on:
     tags: true
     all_branches: true
