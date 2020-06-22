@@ -27,7 +27,7 @@ before_deploy:
   - zip -r netspeed-darwin-amd64.zip netspeed-darwin-amd64
   - zip -r netspeed-windows-386.zip netspeed-windows-386.exe
   - zip -r netspeed-windows-amd64.zip netspeed-windows-amd64.exe
-  - zip -r netspeed-windows-mips64le.zip netspeed-windows-mips64le.exe
+  - zip -r netspeed-linux-mips64le.zip netspeed-linux-mips64le.exe
 
 deploy:
   provider: releases
@@ -38,9 +38,11 @@ deploy:
     - netspeed-linux-386.zip
     - netspeed-darwin-386.zip
     - netspeed-windows-386.zip
+    - netspeed-linux-mipsle.zip
     - netspeed-linux-amd64.zip
     - netspeed-darwin-amd64.zip
     - netspeed-windows-amd64.zip
+    - netspeed-linux-mips64le.zip
   on:
     tags: true
     all_branches: true
