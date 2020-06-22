@@ -14,7 +14,7 @@ var default_block_size uint32 = 64 * 1024
 
 func main() {
 
-	caddress := flag.String("c", "", "connect address(client)")
+	caddress := flag.String("c", "", "connect address(client1)")
 	baddress := flag.String("B", "", "bind address(client)")
 	saddress := flag.String("s", "", "listen address(server)")
 	blocksize := flag.Uint64("b", uint64(default_block_size), "block_size")
