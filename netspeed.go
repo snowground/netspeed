@@ -4,8 +4,8 @@ import (
 	"flag"
 	"sync"
 
-	"github.com/snowground/netspeed/client"
-	"github.com/snowground/netspeed/server"
+	"netspeed/client"
+	"netspeed/server"
 )
 
 var wg sync.WaitGroup
@@ -22,7 +22,7 @@ func main() {
 	read := flag.Bool("r", true, "connect read")
 	write := flag.Bool("w", true, "connect write")
 	transferType := flag.String("t", "tcp", "transfer type (tcp,kcp)")
-
+	onlyConnect := flag.Bool("O", false, "connect only")
 	flag.Parse()
 
 	if (*caddress == "" && *saddress == "") ||
@@ -31,16 +31,26 @@ func main() {
 	}
 	if *caddress != "" {
 		for i := 0; i < *count; i++ {
-			if *read == true {
+			if *onlyConnect == true {
 				wg.Add(1)
-				go client.HandleRead(*caddress, *baddress, *transferType, uint32(*blocksize), &wg)
+				go client.HandleOnlyConnect(*caddress, *baddress, *transferType, uint32(*blocksize), &wg)
+			} else {
+				if *read == true {
+					wg.Add(1)
+					go client.HandleRead(*caddress, *baddress, *transferType, uint32(*blocksize), &wg)
+				}
+				if *write == true {
+					wg.Add(1)
+					go client.HandleWrite(*caddress, *baddress, *transferType, uint32(*blocksize), &wg)
+				}
+
 			}
-			if *write == true {
-				wg.Add(1)
-				go client.HandleWrite(*caddress, *baddress, *transferType, uint32(*blocksize), &wg)
-			}
+
 		}
-		go client.DispalySpeed()
+		if *onlyConnect != true {
+			go client.DispalySpeed()
+		}
+
 	} else if *saddress != "" {
 		wg.Add(1)
 		server.ServerMain(*saddress, *transferType, &wg)

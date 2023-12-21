@@ -5,8 +5,8 @@ import (
 	"log"
 	"sync"
 
-	"github.com/snowground/netspeed/protocol"
-	"github.com/snowground/netspeed/transfer"
+	"netspeed/protocol"
+	"netspeed/transfer"
 )
 
 func handle_read(c transfer.Conn, blocksize uint32) {
@@ -51,11 +51,11 @@ func handleConn(c transfer.Conn) {
 	}
 	switch header.Func {
 	case protocol.HEADER_FUNC_READ:
-		c.SetBuffer(int(header.DataLen),int(header.DataLen))
+		c.SetBuffer(int(header.DataLen), int(header.DataLen))
 		handle_read(c, header.DataLen)
 		break
 	case protocol.HEADER_FUNC_WRITE:
-		c.SetBuffer(int(header.DataLen),int(header.DataLen))
+		c.SetBuffer(int(header.DataLen), int(header.DataLen))
 		handle_write(c, header.DataLen)
 		break
 	default:
@@ -65,27 +65,27 @@ func handleConn(c transfer.Conn) {
 
 }
 
-func ServerMain(address string,transferType string, wg *sync.WaitGroup) {
+func ServerMain(address string, transferType string, wg *sync.WaitGroup) {
 	var l transfer.Listener
 	var err error
 
-    switch transferType {
+	switch transferType {
 	case "tcp":
-			l,err = transfer.TcpServer(address)
+		l, err = transfer.TcpServer(address)
 	case "kcp":
-			l,err = transfer.KcpServer(address)
+		l, err = transfer.KcpServer(address)
 	default:
-			fmt.Println("transferType error: ", transferType)
-			wg.Done()
-			return
+		fmt.Println("transferType error: ", transferType)
+		wg.Done()
+		return
 	}
-		
+
 	if err != nil {
 		fmt.Println("listen error: ", err)
 		wg.Done()
 		return
 	}
-	log.Printf("listen:%s %s", address,transferType)
+	log.Printf("listen:%s %s", address, transferType)
 	for {
 		conn, err := l.Accept()
 		if err != nil {
