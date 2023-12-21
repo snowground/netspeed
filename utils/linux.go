@@ -14,7 +14,7 @@ func getlocalip(conn *net.TCPConn) string {
 	return strings.Split(conn.LocalAddr().String(), ":")[0]
 }
 func BindToDevice(conn *net.TCPConn) error {
-	localip := getlocalip(*conn)
+	localip := getlocalip(conn)
 	f, _ := conn.File()
 	fd := int(f.Fd())
 
