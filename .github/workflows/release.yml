@@ -1,0 +1,74 @@
+# Build and publish to GitHub Releases when a version tag is pushed.
+# Push a tag like v1.0 or v0.9 to trigger: git tag v1.0 && git push origin v1.0
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            artifact: netspeed-linux-amd64
+            suffix: ''
+          - goos: linux
+            goarch: loong64
+            artifact: netspeed-linux-loong64
+            suffix: ''
+          - goos: windows
+            goarch: amd64
+            artifact: netspeed-windows-amd64
+            suffix: '.exe'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.20'
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: go build -v -o ${{ matrix.artifact }}${{ matrix.suffix }} .
+
+      - name: Archive
+        run: |
+          zip ${{ matrix.artifact }}.zip ${{ matrix.artifact }}${{ matrix.suffix }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}.zip
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*/*.zip
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
