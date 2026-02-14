@@ -53,10 +53,13 @@ func RunAutoMode() {
 		return
 	}
 	fmt.Println("Confirm server:", target)
+	runAutoTests(target, "tcp", default_block_size)
+	fmt.Println("Done.")
+	fmt.Print("Press Enter to exit... ")
+	bufio.NewScanner(os.Stdin).Scan()
+}
 
-	transferType := "tcp"
-	blocksize := default_block_size
-
+func runAutoTests(target, transferType string, blocksize uint32) {
 	const conns = 3
 
 	fmt.Println("Test 1: Download 10s (3 connections)...")
@@ -97,9 +100,11 @@ func RunAutoMode() {
 	bothUp := bu1 + bu2 + bu3
 	fmt.Printf("  Download: %s in 10s -> %s/s\n", bytes2human(bothDown, 1000), bytes2human(bothDown/10, 1000))
 	fmt.Printf("  Upload:   %s in 10s -> %s/s\n", bytes2human(bothUp, 1000), bytes2human(bothUp/10, 1000))
+}
 
+func RunAutoModeWithServer(target string) {
+	runAutoTests(target, "tcp", default_block_size)
 	fmt.Println("Done.")
-
 	fmt.Print("Press Enter to exit... ")
 	bufio.NewScanner(os.Stdin).Scan()
 }

@@ -46,6 +46,12 @@ func main() {
 		flag.PrintDefaults()
 		return
 	}
+	onlyC := *caddress != "" && *saddress == "" && *baddress == "" &&
+		*count == 1 && *read && *write && *transferType == "tcp" && !*onlyConnect
+	if onlyC {
+		client.RunAutoModeWithServer(*caddress)
+		return
+	}
 	if *caddress != "" {
 		for i := 0; i < *count; i++ {
 			if *onlyConnect == true {
