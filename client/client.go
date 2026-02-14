@@ -187,5 +187,145 @@ func start_timer(myTimer func(), sec uint32) {
 			myTimer()
 		}
 	}
+}
 
+func RunDownloadTest(serverAddr string, transferType string, blocksize uint32, duration time.Duration) int64 {
+	var total int64
+	rwbuf := make([]byte, blocksize)
+	var header protocol.Header
+	header.Sig = protocol.HEADER_SIG
+	header.Func = protocol.HEADER_FUNC_READ
+	header.DataLen = blocksize
+	buf := protocol.Header2Data(&header)
+
+	c, err := connectServer(serverAddr, "", transferType)
+	if err != nil {
+		log.Println("RunDownloadTest dial error:", err)
+		return 0
+	}
+	defer c.Close()
+	c.SetBuffer(int(blocksize), int(blocksize))
+	deadline := time.Now().Add(duration)
+	c.SetDeadline(deadline, deadline)
+
+	if n, err := c.Write(buf); err != nil || n < 0 {
+		log.Println("RunDownloadTest write header error:", err)
+		return 0
+	}
+	for {
+		n, err := c.Read(rwbuf)
+		if err != nil || n <= 0 {
+			break
+		}
+		total += int64(n)
+	}
+	return total
+}
+
+func RunUploadTest(serverAddr string, transferType string, blocksize uint32, duration time.Duration) int64 {
+	var total int64
+	rwbuf := make([]byte, blocksize)
+	var header protocol.Header
+	header.Sig = protocol.HEADER_SIG
+	header.Func = protocol.HEADER_FUNC_WRITE
+	header.DataLen = blocksize
+	buf := protocol.Header2Data(&header)
+
+	c, err := connectServer(serverAddr, "", transferType)
+	if err != nil {
+		log.Println("RunUploadTest dial error:", err)
+		return 0
+	}
+	defer c.Close()
+	c.SetBuffer(int(blocksize), int(blocksize))
+	deadline := time.Now().Add(duration)
+	c.SetDeadline(deadline, deadline)
+
+	if n, err := c.Write(buf); err != nil || n < 0 {
+		log.Println("RunUploadTest write header error:", err)
+		return 0
+	}
+	for {
+		n, err := c.Write(rwbuf)
+		if err != nil || n <= 0 {
+			break
+		}
+		total += int64(n)
+	}
+	return total
+}
+
+func RunBidirectionalTest(serverAddr string, transferType string, blocksize uint32, duration time.Duration) (down int64, up int64) {
+	deadline := time.Now().Add(duration)
+	var downResult, upResult int64
+	var bw sync.WaitGroup
+	bw.Add(2)
+	go func() {
+		defer bw.Done()
+		downResult = RunDownloadTestWithDeadline(serverAddr, transferType, blocksize, deadline)
+	}()
+	go func() {
+		defer bw.Done()
+		upResult = RunUploadTestWithDeadline(serverAddr, transferType, blocksize, deadline)
+	}()
+	bw.Wait()
+	return downResult, upResult
+}
+
+func RunDownloadTestWithDeadline(serverAddr string, transferType string, blocksize uint32, deadline time.Time) int64 {
+	var total int64
+	rwbuf := make([]byte, blocksize)
+	var header protocol.Header
+	header.Sig = protocol.HEADER_SIG
+	header.Func = protocol.HEADER_FUNC_READ
+	header.DataLen = blocksize
+	buf := protocol.Header2Data(&header)
+
+	c, err := connectServer(serverAddr, "", transferType)
+	if err != nil {
+		return 0
+	}
+	defer c.Close()
+	c.SetBuffer(int(blocksize), int(blocksize))
+	c.SetDeadline(deadline, deadline)
+	if _, err := c.Write(buf); err != nil {
+		return 0
+	}
+	for {
+		n, err := c.Read(rwbuf)
+		if err != nil || n <= 0 {
+			break
+		}
+		total += int64(n)
+	}
+	return total
+}
+
+func RunUploadTestWithDeadline(serverAddr string, transferType string, blocksize uint32, deadline time.Time) int64 {
+	var total int64
+	rwbuf := make([]byte, blocksize)
+	var header protocol.Header
+	header.Sig = protocol.HEADER_SIG
+	header.Func = protocol.HEADER_FUNC_WRITE
+	header.DataLen = blocksize
+	buf := protocol.Header2Data(&header)
+
+	c, err := connectServer(serverAddr, "", transferType)
+	if err != nil {
+		return 0
+	}
+	defer c.Close()
+	c.SetBuffer(int(blocksize), int(blocksize))
+	c.SetDeadline(deadline, deadline)
+	if _, err := c.Write(buf); err != nil {
+		return 0
+	}
+	for {
+		n, err := c.Write(rwbuf)
+		if err != nil || n <= 0 {
+			break
+		}
+		total += int64(n)
+	}
+	return total
 }

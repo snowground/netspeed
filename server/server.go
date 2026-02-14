@@ -3,11 +3,15 @@ package server
 import (
 	"fmt"
 	"log"
+	"net"
+	"strconv"
 	"sync"
 
 	"netspeed/protocol"
 	"netspeed/transfer"
 )
+
+const DiscoveryPort = "1235"
 
 func handle_read(c transfer.Conn, blocksize uint32) {
 	log.Printf("handle_read from conn:%s blocksize:%d", c.RemoteAddr(), blocksize)
@@ -65,6 +69,17 @@ func handleConn(c transfer.Conn) {
 
 }
 
+func parsePortFromAddress(address string) string {
+	_, port, err := net.SplitHostPort(address)
+	if err != nil {
+		return ""
+	}
+	if _, err := strconv.Atoi(port); err != nil {
+		return ""
+	}
+	return port
+}
+
 func ServerMain(address string, transferType string, wg *sync.WaitGroup) {
 	var l transfer.Listener
 	var err error
@@ -84,6 +99,10 @@ func ServerMain(address string, transferType string, wg *sync.WaitGroup) {
 		fmt.Println("listen error: ", err)
 		wg.Done()
 		return
+	}
+	servicePort := parsePortFromAddress(address)
+	if servicePort != "" {
+		go ServeDiscovery(DiscoveryPort, servicePort)
 	}
 	log.Printf("listen:%s %s", address, transferType)
 	for {

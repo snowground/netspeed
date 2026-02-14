@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"runtime"
 	"sync"
 
 	"netspeed/client"
@@ -11,6 +12,8 @@ import (
 var wg sync.WaitGroup
 var default_address string = "127.0.0.1:8888"
 var default_block_size uint32 = 64 * 1024
+
+const autoServicePort = "1234"
 
 func main() {
 
@@ -25,9 +28,23 @@ func main() {
 	onlyConnect := flag.Bool("O", false, "connect only")
 	flag.Parse()
 
-	if (*caddress == "" && *saddress == "") ||
-		(*caddress != "" && *saddress != "") {
+	noClient := *caddress == ""
+	noServer := *saddress == ""
+	if noClient && noServer {
+		if runtime.GOOS == "linux" {
+			wg.Add(1)
+			server.ServerMain(":"+autoServicePort, *transferType, &wg)
+			wg.Wait()
+			return
+		}
+		if runtime.GOOS == "windows" {
+			client.RunAutoMode()
+			return
+		}
+	}
+	if (noClient && noServer) || (!noClient && !noServer) {
 		flag.PrintDefaults()
+		return
 	}
 	if *caddress != "" {
 		for i := 0; i < *count; i++ {
