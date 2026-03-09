@@ -80,6 +80,31 @@ func parsePortFromAddress(address string) string {
 	return port
 }
 
+func ServeUDPEcho(port string) {
+	portNum, err := strconv.Atoi(port)
+	if err != nil || portNum <= 0 {
+		return
+	}
+	addr := &net.UDPAddr{IP: net.IPv4zero, Port: portNum}
+	conn, err := net.ListenUDP("udp4", addr)
+	if err != nil {
+		log.Printf("udp echo listen error: %v", err)
+		return
+	}
+	defer conn.Close()
+	log.Printf("udp echo listening on :%s (same port as TCP)", port)
+	buf := make([]byte, 256)
+	for {
+		n, remote, err := conn.ReadFromUDP(buf)
+		if err != nil {
+			return
+		}
+		if n > 0 {
+			_, _ = conn.WriteToUDP(buf[:n], remote)
+		}
+	}
+}
+
 func ServerMain(address string, transferType string, wg *sync.WaitGroup) {
 	var l transfer.Listener
 	var err error
@@ -103,6 +128,7 @@ func ServerMain(address string, transferType string, wg *sync.WaitGroup) {
 	servicePort := parsePortFromAddress(address)
 	if servicePort != "" {
 		go ServeDiscovery(DiscoveryPort, servicePort)
+		go ServeUDPEcho(servicePort)
 	}
 	log.Printf("listen:%s %s", address, transferType)
 	for {

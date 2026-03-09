@@ -71,7 +71,7 @@ func main() {
 
 		}
 		if *onlyConnect != true {
-			go client.DispalySpeed()
+			go client.DispalySpeed(*caddress)
 		}
 
 	} else if *saddress != "" {

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -51,6 +52,32 @@ func bytes2human(n int64, base int64) (str string) {
 		}
 	}
 	return fmt.Sprintf("%8.2f B", float64(n))
+}
+
+func UDPLatencyProbe(serverAddr string) (ms float64, ok bool) {
+	conn, err := net.DialTimeout("udp", serverAddr, 5*time.Second)
+	if err != nil {
+		return 0, false
+	}
+	defer conn.Close()
+	payload := []byte("ping")
+	start := time.Now()
+	if _, err := conn.Write(payload); err != nil {
+		return 0, false
+	}
+	buf := make([]byte, 64)
+	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	if _, err := conn.Read(buf); err != nil {
+		return 0, false
+	}
+	return float64(time.Since(start).Nanoseconds()) / 1e6, true
+}
+
+func formatUDPLatency(ms float64) string {
+	if ms < 0.001 {
+		return "< 0.001 ms"
+	}
+	return fmt.Sprintf("%.3f ms", ms)
 }
 
 func connectServer(serverAddr string, localAddr string, transferType string) (transfer.Conn, error) {
@@ -152,7 +179,7 @@ exit:
 	wg.Done()
 }
 
-func DispalySpeed() {
+func DispalySpeed(serverAddr string) {
 	var last_up int64 = 0
 	var last_down int64 = 0
 
@@ -173,7 +200,13 @@ func DispalySpeed() {
 		}
 		now_up := atomic.LoadInt64(&total_write)
 		now_down := atomic.LoadInt64(&total_read)
-		log.Printf("down:%s/s     up:%s/s ...", bytes2human(now_down-last_down, 1000), bytes2human(now_up-last_up, 1000))
+		latencyStr := "---"
+		if serverAddr != "" {
+			if ms, ok := UDPLatencyProbe(serverAddr); ok {
+				latencyStr = formatUDPLatency(ms)
+			}
+		}
+		log.Printf("down:%s/s     up:%s/s     udp_rtt:%s", bytes2human(now_down-last_down, 1000), bytes2human(now_up-last_up, 1000), latencyStr)
 		last_up = now_up
 		last_down = now_down
 	}

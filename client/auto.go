@@ -2,6 +2,7 @@ package client
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -61,6 +62,25 @@ func RunAutoMode() {
 
 func runAutoTests(target, transferType string, blocksize uint32) {
 	const conns = 3
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if ms, ok := UDPLatencyProbe(target); ok {
+					fmt.Printf("  [UDP RTT] %s\n", formatUDPLatency(ms))
+				} else {
+					fmt.Printf("  [UDP RTT] ---\n")
+				}
+			}
+		}
+	}()
 
 	fmt.Println("Test 1: Download 10s (3 connections)...")
 	deadline1 := time.Now().Add(AutoTestDuration)
