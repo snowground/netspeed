@@ -45,9 +45,11 @@ jobs:
         run: go build -v -o ${{ matrix.artifact }}${{ matrix.suffix }} .
 
       - name: Install UPX
+        if: matrix.goarch != 'loong64'
         run: sudo apt-get update && sudo apt-get install -y upx-ucl
 
       - name: Compress with UPX
+        if: matrix.goarch != 'loong64'
         run: upx --best --lzma ${{ matrix.artifact }}${{ matrix.suffix }}
 
       - name: Archive
