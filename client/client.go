@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -13,8 +14,53 @@ import (
 	"netspeed/transfer"
 )
 
-var total_read int64 = 0
-var total_write int64 = 0
+var total_download int64 = 0
+var total_upload int64 = 0
+
+var (
+	activeConns   []transfer.Conn
+	activeConnsMu sync.Mutex
+)
+
+func registerConn(c transfer.Conn) transfer.Conn {
+	activeConnsMu.Lock()
+	activeConns = append(activeConns, c)
+	activeConnsMu.Unlock()
+	return c
+}
+
+func unregisterConn(c transfer.Conn) {
+	activeConnsMu.Lock()
+	for i, ac := range activeConns {
+		if ac == c {
+			activeConns = append(activeConns[:i], activeConns[i+1:]...)
+			break
+		}
+	}
+	activeConnsMu.Unlock()
+}
+
+func StopAll() {
+	activeConnsMu.Lock()
+	for _, c := range activeConns {
+		c.Close()
+	}
+	activeConns = nil
+	activeConnsMu.Unlock()
+}
+
+func GetTotalDownload() int64 {
+	return atomic.LoadInt64(&total_download)
+}
+
+func GetTotalUpload() int64 {
+	return atomic.LoadInt64(&total_upload)
+}
+
+func ResetCounters() {
+	atomic.StoreInt64(&total_download, 0)
+	atomic.StoreInt64(&total_upload, 0)
+}
 
 var wg sync.WaitGroup
 var default_address string = "127.0.0.1:8888"
@@ -32,7 +78,7 @@ func factorial(n int) uint64 {
 	return facVal
 
 }
-func bytes2human(n int64, base int64) (str string) {
+func Bytes2Human(n int64, base int64) (str string) {
 
 	symbols := []string{"K", "M", "G", "T", "P", "E"}
 	prefix := make(map[string]int64)
@@ -55,7 +101,16 @@ func bytes2human(n int64, base int64) (str string) {
 }
 
 func UDPLatencyProbe(serverAddr string) (ms float64, ok bool) {
-	conn, err := net.DialTimeout("udp", serverAddr, 5*time.Second)
+	host, port, err := net.SplitHostPort(serverAddr)
+	if err != nil {
+		return 0, false
+	}
+	portNum, err := strconv.Atoi(port)
+	if err != nil {
+		return 0, false
+	}
+	echoAddr := net.JoinHostPort(host, strconv.Itoa(portNum+1))
+	conn, err := net.DialTimeout("udp", echoAddr, 5*time.Second)
 	if err != nil {
 		return 0, false
 	}
@@ -73,7 +128,7 @@ func UDPLatencyProbe(serverAddr string) (ms float64, ok bool) {
 	return float64(time.Since(start).Nanoseconds()) / 1e6, true
 }
 
-func formatUDPLatency(ms float64) string {
+func FormatUDPLatency(ms float64) string {
 	if ms < 0.001 {
 		return "< 0.001 ms"
 	}
@@ -102,6 +157,8 @@ func HandleOnlyConnect(serverAddr string, localAddr string, transferType string,
 		log.Println("dial error:", err)
 		goto exit
 	}
+	registerConn(c)
+	defer unregisterConn(c)
 	defer c.Close()
 	for {
 		time.Sleep(time.Second * 60)
@@ -110,11 +167,11 @@ func HandleOnlyConnect(serverAddr string, localAddr string, transferType string,
 exit:
 	wg.Done()
 }
-func HandleRead(serverAddr string, localAddr string, transferType string, blocksize uint32, wg *sync.WaitGroup) {
+func HandleDownload(serverAddr string, localAddr string, transferType string, blocksize uint32, wg *sync.WaitGroup) {
 	var rwbuf = make([]byte, blocksize)
 	var header protocol.Header
 	header.Sig = protocol.HEADER_SIG
-	header.Func = protocol.HEADER_FUNC_READ
+	header.Func = protocol.HEADER_FUNC_DOWNLOAD
 	header.DataLen = blocksize
 	buf := protocol.Header2Data(&header)
 	var n int
@@ -124,6 +181,8 @@ func HandleRead(serverAddr string, localAddr string, transferType string, blocks
 		log.Println("dial error:", err)
 		goto exit
 	}
+	registerConn(c)
+	defer unregisterConn(c)
 	defer c.Close()
 	c.SetBuffer(int(blocksize), int(blocksize))
 	n, err = c.Write(buf)
@@ -131,7 +190,7 @@ func HandleRead(serverAddr string, localAddr string, transferType string, blocks
 		log.Println("conn Write header error:", err)
 		goto exit
 	}
-	log.Printf("handle_read to conn:%s %s blocksize:%d", c.RemoteAddr(), transferType, blocksize)
+	log.Printf("handle_download to conn:%s %s blocksize:%d", c.RemoteAddr(), transferType, blocksize)
 
 	for {
 		n, err = c.Read(rwbuf)
@@ -139,16 +198,16 @@ func HandleRead(serverAddr string, localAddr string, transferType string, blocks
 			log.Println("conn read error:", err)
 			break
 		}
-		atomic.AddInt64(&total_read, int64(n))
+		atomic.AddInt64(&total_download, int64(n))
 	}
 exit:
 	wg.Done()
 }
-func HandleWrite(serverAddr string, localAddr string, transferType string, blocksize uint32, wg *sync.WaitGroup) {
+func HandleUpload(serverAddr string, localAddr string, transferType string, blocksize uint32, wg *sync.WaitGroup) {
 	var rwbuf = make([]byte, blocksize)
 	var header protocol.Header
 	header.Sig = protocol.HEADER_SIG
-	header.Func = protocol.HEADER_FUNC_WRITE
+	header.Func = protocol.HEADER_FUNC_UPLOAD
 	header.DataLen = blocksize
 	buf := protocol.Header2Data(&header)
 	var n int
@@ -157,6 +216,8 @@ func HandleWrite(serverAddr string, localAddr string, transferType string, block
 		log.Println("dial error:", err)
 		goto exit
 	}
+	registerConn(c)
+	defer unregisterConn(c)
 	defer c.Close()
 	c.SetBuffer(int(blocksize), int(blocksize))
 
@@ -165,7 +226,7 @@ func HandleWrite(serverAddr string, localAddr string, transferType string, block
 		log.Println("conn Write header error:", err)
 		goto exit
 	}
-	log.Printf("handle_write to conn:%s %s blocksize:%d", c.RemoteAddr(), transferType, blocksize)
+	log.Printf("handle_upload to conn:%s %s blocksize:%d", c.RemoteAddr(), transferType, blocksize)
 
 	for {
 		n, err = c.Write(rwbuf)
@@ -173,7 +234,7 @@ func HandleWrite(serverAddr string, localAddr string, transferType string, block
 			log.Println("conn read error:", err)
 			break
 		}
-		atomic.AddInt64(&total_write, int64(n))
+		atomic.AddInt64(&total_upload, int64(n))
 	}
 exit:
 	wg.Done()
@@ -198,15 +259,15 @@ func DispalySpeed(serverAddr string) {
 			g_can_down, g_can_up = g_can_up, g_can_down
 			test_time = now_time
 		}
-		now_up := atomic.LoadInt64(&total_write)
-		now_down := atomic.LoadInt64(&total_read)
+	now_up := atomic.LoadInt64(&total_upload)
+	now_down := atomic.LoadInt64(&total_download)
 		latencyStr := "---"
 		if serverAddr != "" {
 			if ms, ok := UDPLatencyProbe(serverAddr); ok {
-				latencyStr = formatUDPLatency(ms)
+				latencyStr = FormatUDPLatency(ms)
 			}
 		}
-		log.Printf("down:%s/s     up:%s/s     udp_rtt:%s", bytes2human(now_down-last_down, 1000), bytes2human(now_up-last_up, 1000), latencyStr)
+		log.Printf("down:%s/s     up:%s/s     udp_rtt:%s", Bytes2Human(now_down-last_down, 1000), Bytes2Human(now_up-last_up, 1000), latencyStr)
 		last_up = now_up
 		last_down = now_down
 	}
@@ -227,7 +288,7 @@ func RunDownloadTest(serverAddr string, transferType string, blocksize uint32, d
 	rwbuf := make([]byte, blocksize)
 	var header protocol.Header
 	header.Sig = protocol.HEADER_SIG
-	header.Func = protocol.HEADER_FUNC_READ
+	header.Func = protocol.HEADER_FUNC_DOWNLOAD
 	header.DataLen = blocksize
 	buf := protocol.Header2Data(&header)
 
@@ -236,6 +297,8 @@ func RunDownloadTest(serverAddr string, transferType string, blocksize uint32, d
 		log.Println("RunDownloadTest dial error:", err)
 		return 0
 	}
+	registerConn(c)
+	defer unregisterConn(c)
 	defer c.Close()
 	c.SetBuffer(int(blocksize), int(blocksize))
 	deadline := time.Now().Add(duration)
@@ -260,7 +323,7 @@ func RunUploadTest(serverAddr string, transferType string, blocksize uint32, dur
 	rwbuf := make([]byte, blocksize)
 	var header protocol.Header
 	header.Sig = protocol.HEADER_SIG
-	header.Func = protocol.HEADER_FUNC_WRITE
+	header.Func = protocol.HEADER_FUNC_UPLOAD
 	header.DataLen = blocksize
 	buf := protocol.Header2Data(&header)
 
@@ -269,6 +332,8 @@ func RunUploadTest(serverAddr string, transferType string, blocksize uint32, dur
 		log.Println("RunUploadTest dial error:", err)
 		return 0
 	}
+	registerConn(c)
+	defer unregisterConn(c)
 	defer c.Close()
 	c.SetBuffer(int(blocksize), int(blocksize))
 	deadline := time.Now().Add(duration)
@@ -310,7 +375,7 @@ func RunDownloadTestWithDeadline(serverAddr string, transferType string, blocksi
 	rwbuf := make([]byte, blocksize)
 	var header protocol.Header
 	header.Sig = protocol.HEADER_SIG
-	header.Func = protocol.HEADER_FUNC_READ
+	header.Func = protocol.HEADER_FUNC_DOWNLOAD
 	header.DataLen = blocksize
 	buf := protocol.Header2Data(&header)
 
@@ -318,6 +383,8 @@ func RunDownloadTestWithDeadline(serverAddr string, transferType string, blocksi
 	if err != nil {
 		return 0
 	}
+	registerConn(c)
+	defer unregisterConn(c)
 	defer c.Close()
 	c.SetBuffer(int(blocksize), int(blocksize))
 	c.SetDeadline(deadline, deadline)
@@ -339,7 +406,7 @@ func RunUploadTestWithDeadline(serverAddr string, transferType string, blocksize
 	rwbuf := make([]byte, blocksize)
 	var header protocol.Header
 	header.Sig = protocol.HEADER_SIG
-	header.Func = protocol.HEADER_FUNC_WRITE
+	header.Func = protocol.HEADER_FUNC_UPLOAD
 	header.DataLen = blocksize
 	buf := protocol.Header2Data(&header)
 
@@ -347,6 +414,8 @@ func RunUploadTestWithDeadline(serverAddr string, transferType string, blocksize
 	if err != nil {
 		return 0
 	}
+	registerConn(c)
+	defer unregisterConn(c)
 	defer c.Close()
 	c.SetBuffer(int(blocksize), int(blocksize))
 	c.SetDeadline(deadline, deadline)

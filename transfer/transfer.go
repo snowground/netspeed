@@ -15,4 +15,5 @@ type Conn interface {
 
 type Listener interface {
 	Accept() (Conn,error)
+	Close() error
 }

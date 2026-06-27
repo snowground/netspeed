@@ -7,10 +7,12 @@ import (
 )
 
 const (
-	HEADER_SIG        = 0x11223311
-	HEADER_FUNC_READ  = 0x00000001
-	HEADER_FUNC_WRITE = 0x00000002
+	HEADER_SIG            = 0x11223311
+	HEADER_FUNC_DOWNLOAD  = 0x00000001
+	HEADER_FUNC_UPLOAD    = 0x00000002
 )
+
+const HeaderSize = 12
 
 type Header struct {
 	Sig     uint32
@@ -24,7 +26,7 @@ type SliceMock struct {
 }
 
 func Data2header(data []byte, data_len int) (err error, header *Header) {
-	if int(unsafe.Sizeof(*header)) != data_len {
+	if data_len < HeaderSize {
 		return errors.New("data too small"), nil
 	}
 	header = *(**Header)(unsafe.Pointer(&data))

@@ -21,14 +21,22 @@ jobs:
             goarch: amd64
             artifact: netspeed-linux-amd64
             suffix: ''
+            gui: false
           - goos: linux
             goarch: loong64
             artifact: netspeed-linux-loong64
             suffix: ''
+            gui: false
           - goos: windows
             goarch: amd64
             artifact: netspeed-windows-amd64
             suffix: '.exe'
+            gui: false
+          - goos: windows
+            goarch: amd64
+            artifact: netspeed-windows-amd64-gui
+            suffix: '.exe'
+            gui: true
 
     steps:
       - uses: actions/checkout@v4
@@ -36,13 +44,22 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.20'
+          go-version: '1.24'
 
       - name: Build
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
-        run: go build -v -o ${{ matrix.artifact }}${{ matrix.suffix }} .
+          CGO_ENABLED: 0
+        run: |
+          if [ "${{ matrix.gui }}" = "true" ]; then
+            echo "Generating manifest resource for GUI build..."
+            go run github.com/akavel/rsrc@latest -manifest gui/manifest.xml -o gui/rsrc.syso
+            go build -trimpath -ldflags "-s -w -H windowsgui" -o ${{ matrix.artifact }}${{ matrix.suffix }} ./gui
+            rm -f gui/rsrc.syso
+          else
+            go build -trimpath -ldflags "-s -w" -o ${{ matrix.artifact }}${{ matrix.suffix }} .
+          fi
 
       - name: Install UPX
         if: matrix.goarch != 'loong64'

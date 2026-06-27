@@ -1,7 +1,7 @@
 package server
 
 import (
-	"fmt"
+	"io"
 	"log"
 	"net"
 	"strconv"
@@ -13,8 +13,44 @@ import (
 
 const DiscoveryPort = "1235"
 
-func handle_read(c transfer.Conn, blocksize uint32) {
-	log.Printf("handle_read from conn:%s blocksize:%d", c.RemoteAddr(), blocksize)
+var (
+	listener      transfer.Listener
+	activeConns   []transfer.Conn
+	activeConnsMu sync.Mutex
+)
+
+func registerConn(c transfer.Conn) {
+	activeConnsMu.Lock()
+	activeConns = append(activeConns, c)
+	activeConnsMu.Unlock()
+}
+
+func unregisterConn(c transfer.Conn) {
+	activeConnsMu.Lock()
+	for i, ac := range activeConns {
+		if ac == c {
+			activeConns = append(activeConns[:i], activeConns[i+1:]...)
+			break
+		}
+	}
+	activeConnsMu.Unlock()
+}
+
+func Stop() {
+	if listener != nil {
+		listener.Close()
+		listener = nil
+	}
+	activeConnsMu.Lock()
+	for _, c := range activeConns {
+		c.Close()
+	}
+	activeConns = nil
+	activeConnsMu.Unlock()
+}
+
+func handle_download(c transfer.Conn, blocksize uint32) {
+	log.Printf("handle_download from conn:%s blocksize:%d", c.RemoteAddr(), blocksize)
 	var buf = make([]byte, blocksize)
 	for {
 		n, err := c.Write(buf)
@@ -24,8 +60,8 @@ func handle_read(c transfer.Conn, blocksize uint32) {
 		}
 	}
 }
-func handle_write(c transfer.Conn, blocksize uint32) {
-	log.Printf("handle_write from conn:%s blocksize:%d", c.RemoteAddr(), blocksize)
+func handle_upload(c transfer.Conn, blocksize uint32) {
+	log.Printf("handle_upload from conn:%s blocksize:%d", c.RemoteAddr(), blocksize)
 	var buf = make([]byte, blocksize)
 	for {
 		n, err := c.Read(buf)
@@ -37,13 +73,12 @@ func handle_write(c transfer.Conn, blocksize uint32) {
 }
 func handleConn(c transfer.Conn) {
 	defer c.Close()
+	registerConn(c)
+	defer unregisterConn(c)
 
-	// read from the connection
-	var buf = make([]byte, 1024)
+	var buf = make([]byte, protocol.HeaderSize)
 
-	//	n, err := c.Read(buf)
-
-	n, err := c.Read(buf)
+	n, err := io.ReadFull(c, buf)
 	if err != nil {
 		log.Println("conn read error: ", err, c.RemoteAddr())
 		return
@@ -54,13 +89,13 @@ func handleConn(c transfer.Conn) {
 		return
 	}
 	switch header.Func {
-	case protocol.HEADER_FUNC_READ:
+	case protocol.HEADER_FUNC_DOWNLOAD:
 		c.SetBuffer(int(header.DataLen), int(header.DataLen))
-		handle_read(c, header.DataLen)
+		handle_download(c, header.DataLen)
 		break
-	case protocol.HEADER_FUNC_WRITE:
+	case protocol.HEADER_FUNC_UPLOAD:
 		c.SetBuffer(int(header.DataLen), int(header.DataLen))
-		handle_write(c, header.DataLen)
+		handle_upload(c, header.DataLen)
 		break
 	default:
 		log.Printf("header.Func:%08x addr:%s", header.Func, c.RemoteAddr())
@@ -92,7 +127,7 @@ func ServeUDPEcho(port string) {
 		return
 	}
 	defer conn.Close()
-	log.Printf("udp echo listening on :%s (same port as TCP)", port)
+	log.Printf("udp echo listening on :%s (service port + 1)", port)
 	buf := make([]byte, 256)
 	for {
 		n, remote, err := conn.ReadFromUDP(buf)
@@ -115,26 +150,29 @@ func ServerMain(address string, transferType string, wg *sync.WaitGroup) {
 	case "kcp":
 		l, err = transfer.KcpServer(address)
 	default:
-		fmt.Println("transferType error: ", transferType)
+		log.Printf("transferType error: %s", transferType)
 		wg.Done()
 		return
 	}
 
 	if err != nil {
-		fmt.Println("listen error: ", err)
+		log.Printf("listen error: %v", err)
 		wg.Done()
 		return
 	}
+	listener = l
 	servicePort := parsePortFromAddress(address)
 	if servicePort != "" {
 		go ServeDiscovery(DiscoveryPort, servicePort)
-		go ServeUDPEcho(servicePort)
+		if portNum, err := strconv.Atoi(servicePort); err == nil {
+			go ServeUDPEcho(strconv.Itoa(portNum + 1))
+		}
 	}
 	log.Printf("listen:%s %s", address, transferType)
 	for {
 		conn, err := l.Accept()
 		if err != nil {
-			fmt.Println("accept error: ", err)
+			log.Printf("accept error: %v", err)
 			break
 		}
 		go handleConn(conn)

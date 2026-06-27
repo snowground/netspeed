@@ -28,6 +28,9 @@ func (l*TcpListener) Accept() (Conn,error) {
 	}
 	return &TcpConn{conn:c},nil
 }
+func (l *TcpListener) Close() error {
+	return l.lis.Close()
+}
 func TcpConnect(serverAddr string, localAddr string) (*TcpConn,error) {
 	serveraddr, serr := net.ResolveTCPAddr("tcp", serverAddr)
 	if serr != nil {

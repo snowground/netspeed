@@ -3,7 +3,6 @@ package client
 import (
 	"bufio"
 	"context"
-	"fmt"
 	"log"
 	"os"
 	"strconv"
@@ -24,15 +23,15 @@ func RunAutoMode() {
 		log.Println("no server found (broadcast discovery)")
 		return
 	}
-	fmt.Println("Discovered servers:")
+	log.Println("Discovered servers:")
 	for i, a := range addrs {
-		fmt.Printf("  [%d] %s\n", i+1, a)
+		log.Printf("  [%d] %s", i+1, a)
 	}
 	var target string
 	if len(addrs) == 1 {
 		target = addrs[0]
 	} else {
-		fmt.Print("Select server (number or address): ")
+		print("Select server (number or address): ")
 		sc := bufio.NewScanner(os.Stdin)
 		if !sc.Scan() {
 			return
@@ -53,14 +52,14 @@ func RunAutoMode() {
 		log.Println("invalid selection")
 		return
 	}
-	fmt.Println("Confirm server:", target)
-	runAutoTests(target, "tcp", default_block_size)
-	fmt.Println("Done.")
-	fmt.Print("Press Enter to exit... ")
+	log.Println("Confirm server:", target)
+	RunAutoTests(target, "tcp", default_block_size)
+	log.Println("Done.")
+	print("Press Enter to exit... ")
 	bufio.NewScanner(os.Stdin).Scan()
 }
 
-func runAutoTests(target, transferType string, blocksize uint32) {
+func RunAutoTests(target, transferType string, blocksize uint32) {
 	const conns = 3
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -74,15 +73,15 @@ func runAutoTests(target, transferType string, blocksize uint32) {
 				return
 			case <-ticker.C:
 				if ms, ok := UDPLatencyProbe(target); ok {
-					fmt.Printf("  [UDP RTT] %s\n", formatUDPLatency(ms))
+					log.Printf("  [UDP RTT] %s", FormatUDPLatency(ms))
 				} else {
-					fmt.Printf("  [UDP RTT] ---\n")
+					log.Printf("  [UDP RTT] ---")
 				}
 			}
 		}
 	}()
 
-	fmt.Println("Test 1: Download 10s (3 connections)...")
+	log.Println("Test 1: Download 10s (3 connections)...")
 	deadline1 := time.Now().Add(AutoTestDuration)
 	var wg sync.WaitGroup
 	var d1, d2, d3 int64
@@ -92,9 +91,9 @@ func runAutoTests(target, transferType string, blocksize uint32) {
 	go func() { defer wg.Done(); d3 = RunDownloadTestWithDeadline(target, transferType, blocksize, deadline1) }()
 	wg.Wait()
 	totalDown := d1 + d2 + d3
-	fmt.Printf("  Download: %s in 10s -> %s/s\n", bytes2human(totalDown, 1000), bytes2human(totalDown/10, 1000))
+	log.Printf("  Download: %s in 10s -> %s/s", Bytes2Human(totalDown, 1000), Bytes2Human(totalDown/10, 1000))
 
-	fmt.Println("Test 2: Upload 10s (3 connections)...")
+	log.Println("Test 2: Upload 10s (3 connections)...")
 	deadline2 := time.Now().Add(AutoTestDuration)
 	var u1, u2, u3 int64
 	wg.Add(conns)
@@ -103,9 +102,9 @@ func runAutoTests(target, transferType string, blocksize uint32) {
 	go func() { defer wg.Done(); u3 = RunUploadTestWithDeadline(target, transferType, blocksize, deadline2) }()
 	wg.Wait()
 	totalUp := u1 + u2 + u3
-	fmt.Printf("  Upload:   %s in 10s -> %s/s\n", bytes2human(totalUp, 1000), bytes2human(totalUp/10, 1000))
+	log.Printf("  Upload:   %s in 10s -> %s/s", Bytes2Human(totalUp, 1000), Bytes2Human(totalUp/10, 1000))
 
-	fmt.Println("Test 3: Download + Upload 10s (3 connections, each conn both down+up)...")
+	log.Println("Test 3: Download + Upload 10s (3 connections, each conn both down+up)...")
 	deadline3 := time.Now().Add(AutoTestDuration)
 	var bd1, bd2, bd3, bu1, bu2, bu3 int64
 	wg.Add(conns * 2)
@@ -118,13 +117,13 @@ func runAutoTests(target, transferType string, blocksize uint32) {
 	wg.Wait()
 	bothDown := bd1 + bd2 + bd3
 	bothUp := bu1 + bu2 + bu3
-	fmt.Printf("  Download: %s in 10s -> %s/s\n", bytes2human(bothDown, 1000), bytes2human(bothDown/10, 1000))
-	fmt.Printf("  Upload:   %s in 10s -> %s/s\n", bytes2human(bothUp, 1000), bytes2human(bothUp/10, 1000))
+	log.Printf("  Download: %s in 10s -> %s/s", Bytes2Human(bothDown, 1000), Bytes2Human(bothDown/10, 1000))
+	log.Printf("  Upload:   %s in 10s -> %s/s", Bytes2Human(bothUp, 1000), Bytes2Human(bothUp/10, 1000))
 }
 
 func RunAutoModeWithServer(target string) {
-	runAutoTests(target, "tcp", default_block_size)
-	fmt.Println("Done.")
-	fmt.Print("Press Enter to exit... ")
+	RunAutoTests(target, "tcp", default_block_size)
+	log.Println("Done.")
+	print("Press Enter to exit... ")
 	bufio.NewScanner(os.Stdin).Scan()
 }

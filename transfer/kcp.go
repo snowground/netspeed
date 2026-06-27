@@ -23,6 +23,9 @@ func (l*KcpListener) Accept() (Conn,error) {
 	}
 	return &KcpConn{conn:c},nil
 }
+func (l *KcpListener) Close() error {
+	return l.lis.Close()
+}
 func KcpConnect(serverAddr string, localAddr string) (*KcpConn,error) {
 	kcpconn, err := kcp.DialWithOptions(serverAddr, nil, 0, 0)
 	if err != nil {
