@@ -54,7 +54,7 @@ jobs:
         run: |
           if [ "${{ matrix.gui }}" = "true" ]; then
             echo "Generating manifest resource for GUI build..."
-            go run github.com/akavel/rsrc@latest -manifest gui/manifest.xml -o gui/rsrc.syso
+            GOOS= GOARCH= go run github.com/akavel/rsrc@latest -manifest gui/manifest.xml -o gui/rsrc.syso
             go build -trimpath -ldflags "-s -w -H windowsgui" -o ${{ matrix.artifact }}${{ matrix.suffix }} ./gui
             rm -f gui/rsrc.syso
           else
