@@ -24,6 +24,7 @@ type GUI struct {
 	cbMode       *walk.ComboBox
 	leServerAddr *walk.LineEdit
 	leBindAddr   *walk.LineEdit
+	leSocks5Addr *walk.LineEdit
 	leBlockSize  *walk.LineEdit
 	leCount      *walk.LineEdit
 	cbTransfer   *walk.ComboBox
@@ -54,6 +55,7 @@ func main() {
 	defMode := 0
 	defServerAddr := app.DefaultAddress
 	defBindAddr := ""
+	defSocks5Addr := ""
 	defBlockSize := strconv.FormatUint(uint64(app.DefaultBlockSize), 10)
 	defCount := "1"
 	defTransferIndex := 0
@@ -67,6 +69,7 @@ func main() {
 			defServerAddr = saved.ServerAddr
 		}
 		defBindAddr = saved.BindAddr
+		defSocks5Addr = saved.Socks5Addr
 		if saved.BlockSize != "" {
 			defBlockSize = saved.BlockSize
 		}
@@ -110,6 +113,9 @@ func main() {
 
 					Label{Text: "Bind Address:"},
 					LineEdit{AssignTo: &g.leBindAddr, Text: defBindAddr},
+
+					Label{Text: "SOCKS5 Proxy:"},
+					LineEdit{AssignTo: &g.leSocks5Addr, Text: defSocks5Addr},
 
 					Label{Text: "Block Size:"},
 					LineEdit{AssignTo: &g.leBlockSize, Text: defBlockSize},
@@ -225,6 +231,7 @@ func (g *GUI) onStart() {
 	mode := g.getMode()
 	serverAddr := g.leServerAddr.Text()
 	bindAddr := g.leBindAddr.Text()
+	socks5Addr := g.leSocks5Addr.Text()
 	blockSize, err := strconv.ParseUint(g.leBlockSize.Text(), 10, 32)
 	if err != nil {
 		walk.MsgBox(g.mw, "Error", "Invalid block size", walk.MsgBoxIconError)
@@ -244,6 +251,7 @@ func (g *GUI) onStart() {
 		Mode:          mode,
 		ServerAddr:    serverAddr,
 		BindAddr:      bindAddr,
+		Socks5Addr:    socks5Addr,
 		BlockSize:     strconv.FormatUint(blockSize, 10),
 		Count:         strconv.Itoa(count),
 		TransferIndex: transferIndex,
@@ -271,6 +279,7 @@ func (g *GUI) onStart() {
 			TransferType: transferType,
 			OnlyConnect:  onlyConnect,
 			DisplaySpeed: false,
+			Socks5Addr:   socks5Addr,
 		}
 		g.startSpeedMonitor(serverAddr)
 		go func() {
@@ -318,7 +327,7 @@ func (g *GUI) onStart() {
 		target := serverAddr
 		g.startSpeedMonitor(target)
 		go func() {
-			app.RunAuto(target, transferType, uint32(blockSize), func() {
+			app.RunAuto(target, transferType, uint32(blockSize), socks5Addr, func() {
 				g.mw.Synchronize(func() {
 					g.setRunning(false)
 				})
@@ -387,7 +396,7 @@ func (g *GUI) showServerSelection(addrs []string) {
 func (g *GUI) startSpeedMonitor(serverAddr string) {
 	stopCh := g.stopCh
 	go func() {
-		tickCount := 0
+		lastRTT := "---"
 		for {
 			select {
 			case <-stopCh:
@@ -402,18 +411,16 @@ func (g *GUI) startSpeedMonitor(serverAddr string) {
 			g.lastDown = nowDown
 			g.lastUp = nowUp
 
-			rtt := "---"
-			if tickCount%5 == 0 && serverAddr != "" {
+			if serverAddr != "" {
 				if ms, ok := client.UDPLatencyProbe(serverAddr); ok {
-					rtt = client.FormatUDPLatency(ms)
+					lastRTT = client.FormatUDPLatency(ms)
 				}
 			}
-			tickCount++
 
 			g.mw.Synchronize(func() {
 				g.lblDownSpeed.SetText(client.Bytes2Human(downSpeed, 1000) + "/s")
 				g.lblUpSpeed.SetText(client.Bytes2Human(upSpeed, 1000) + "/s")
-				g.lblRTT.SetText(rtt)
+				g.lblRTT.SetText(lastRTT)
 			})
 
 			time.Sleep(time.Second)

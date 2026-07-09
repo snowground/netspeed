@@ -8,6 +8,9 @@ import (
 )
 
 func RunClient(cfg Config, done func()) {
+	client.SetSocks5Proxy(cfg.Socks5Addr)
+	defer client.SetSocks5Proxy("")
+
 	var wg sync.WaitGroup
 
 	for i := 0; i < cfg.Count; i++ {
@@ -46,7 +49,10 @@ func RunServer(cfg Config, done func()) {
 	}
 }
 
-func RunAuto(target, transferType string, blocksize uint32, done func()) {
+func RunAuto(target, transferType string, blocksize uint32, socks5Addr string, done func()) {
+	client.SetSocks5Proxy(socks5Addr)
+	defer client.SetSocks5Proxy("")
+
 	client.RunAutoTests(target, transferType, blocksize)
 	if done != nil {
 		done()

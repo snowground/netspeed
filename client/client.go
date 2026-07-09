@@ -65,6 +65,11 @@ func ResetCounters() {
 var wg sync.WaitGroup
 var default_address string = "127.0.0.1:8888"
 var default_block_size uint32 = 64 * 1024
+var socks5Proxy string
+
+func SetSocks5Proxy(addr string) {
+	socks5Proxy = addr
+}
 
 func factorial(n int) uint64 {
 	var facVal uint64 = 1
@@ -109,19 +114,30 @@ func UDPLatencyProbe(serverAddr string) (ms float64, ok bool) {
 	if err != nil {
 		return 0, false
 	}
-	echoAddr := net.JoinHostPort(host, strconv.Itoa(portNum+1))
-	conn, err := net.DialTimeout("udp", echoAddr, 5*time.Second)
+	echoPort := portNum + 1
+	payload := []byte("ping")
+	timeout := 5 * time.Second
+
+	if socks5Proxy != "" {
+		rtt, err := transfer.UDPProbeViaSocks5(socks5Proxy, host, echoPort, payload, timeout)
+		if err != nil {
+			return 0, false
+		}
+		return float64(rtt.Nanoseconds()) / 1e6, true
+	}
+
+	echoAddr := net.JoinHostPort(host, strconv.Itoa(echoPort))
+	conn, err := net.DialTimeout("udp", echoAddr, timeout)
 	if err != nil {
 		return 0, false
 	}
 	defer conn.Close()
-	payload := []byte("ping")
 	start := time.Now()
 	if _, err := conn.Write(payload); err != nil {
 		return 0, false
 	}
 	buf := make([]byte, 64)
-	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	conn.SetReadDeadline(time.Now().Add(timeout))
 	if _, err := conn.Read(buf); err != nil {
 		return 0, false
 	}
@@ -141,8 +157,11 @@ func connectServer(serverAddr string, localAddr string, transferType string) (tr
 
 	switch transferType {
 	case "tcp":
-		l, err = transfer.TcpConnect(serverAddr, localAddr)
+		l, err = transfer.TcpConnect(serverAddr, localAddr, socks5Proxy)
 	case "kcp":
+		if socks5Proxy != "" {
+			return nil, errors.New("socks5 proxy is not supported for kcp transfer")
+		}
 		l, err = transfer.KcpConnect(serverAddr, localAddr)
 	default:
 		wg.Done()

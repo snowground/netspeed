@@ -11,6 +11,7 @@ type guiConfig struct {
 	Mode          int    `json:"mode"`
 	ServerAddr    string `json:"serverAddr"`
 	BindAddr      string `json:"bindAddr"`
+	Socks5Addr    string `json:"socks5Addr"`
 	BlockSize     string `json:"blockSize"`
 	Count         string `json:"count"`
 	TransferIndex int    `json:"transferIndex"`

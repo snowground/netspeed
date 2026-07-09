@@ -31,7 +31,14 @@ func (l*TcpListener) Accept() (Conn,error) {
 func (l *TcpListener) Close() error {
 	return l.lis.Close()
 }
-func TcpConnect(serverAddr string, localAddr string) (*TcpConn,error) {
+func TcpConnect(serverAddr string, localAddr string, socks5Addr string) (*TcpConn, error) {
+	if socks5Addr != "" {
+		conn, err := dialTCPViaSocks5(socks5Addr, serverAddr, localAddr)
+		if err != nil {
+			return nil, err
+		}
+		return &TcpConn{conn: conn}, nil
+	}
 	serveraddr, serr := net.ResolveTCPAddr("tcp", serverAddr)
 	if serr != nil {
 		return nil, serr
@@ -41,14 +48,14 @@ func TcpConnect(serverAddr string, localAddr string) (*TcpConn,error) {
 	if len(localAddr) > 0 {
 		localaddr, lerr = net.ResolveTCPAddr("tcp", localAddr)
 		if lerr != nil {
-			return  nil, serr
+			return nil, serr
 		}
 	}
 	conn, err := net.DialTCP("tcp", localaddr, serveraddr)
 	if err != nil {
-		return  nil, err
+		return nil, err
 	}
-	return  &TcpConn{conn:conn}, nil
+	return &TcpConn{conn: conn}, nil
 }
 
 func (c *TcpConn) Read(b []byte) (int, error) {

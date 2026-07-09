@@ -20,6 +20,7 @@ func main() {
 	upload := flag.Bool("w", true, "connect upload")
 	transferType := flag.String("t", "tcp", "transfer type (tcp,kcp)")
 	onlyConnect := flag.Bool("O", false, "connect only")
+	socks5Addr := flag.String("S", "", "socks5 proxy address (client), e.g. 127.0.0.1:1080 or user:pass@127.0.0.1:1080")
 	flag.Parse()
 
 	noClient := *caddress == ""
@@ -53,6 +54,7 @@ func main() {
 		TransferType: *transferType,
 		OnlyConnect:  *onlyConnect,
 		DisplaySpeed: true,
+		Socks5Addr:   *socks5Addr,
 	}
 
 	if *caddress != "" {

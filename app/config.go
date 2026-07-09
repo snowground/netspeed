@@ -11,6 +11,7 @@ type Config struct {
 	TransferType string
 	OnlyConnect  bool
 	DisplaySpeed bool
+	Socks5Addr   string
 }
 
 var DefaultAddress string = "127.0.0.1:8888"
